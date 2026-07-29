@@ -37,6 +37,53 @@ repository history or automation.
 Normal providers, tools, plugins, and LLM-backed models remain available when
 another model is selected.
 
+## Historical visible proof
+
+The preserved native Telegram Desktop recording shows the route concept before
+and after enabling `dummy/dummy`: an unavailable normal model produces a
+provider error, while the deterministic route handles the ordinary message
+immediately. Commands and plugin hooks remain ahead of the fallback.
+
+<table>
+  <thead>
+    <tr>
+      <th width="50%">Before</th>
+      <th width="50%">Deterministic route</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <a href="docs/demo/deterministic-before.mp4">
+          <img src="docs/demo/deterministic-before.png" alt="Telegram before the deterministic patch">
+        </a>
+      </td>
+      <td>
+        <a href="docs/demo/deterministic-after.mp4">
+          <img src="docs/demo/deterministic-after.png" alt="Telegram using the deterministic route">
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Click either screenshot to open its MP4 recording.
+
+These recordings predate the `2026.7.1` port. They demonstrate routing behavior,
+not byte-exact release wording; the canonical behavior is the version-pinned
+patch in this repository.
+
+### NOTE full mode
+
+`dummy/note` lets the separate NOTE plugin claim ordinary non-command messages,
+store them without a model request, acknowledge the save, and return them
+through `/note show`.
+
+![NOTE full mode in Telegram](https://raw.githubusercontent.com/safrano9999/NOTE/2026.7.36/docs/full-mode.jpg)
+
+The NOTE screenshot is a workflow illustration captured on OpenClaw `2026.6.11`,
+not a `2026.7.1` build-verification artifact.
+
 ## Version pin
 
 The patch applies only to OpenClaw `2026.7.1`.
