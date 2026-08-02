@@ -87,6 +87,8 @@ not a `2026.7.1` build-verification artifact.
 ## Version pin
 
 The patch applies only to OpenClaw `2026.7.1`.
+The complete machine-readable build input is recorded in `build.conf`.
+Its corresponding runtime image is `ghcr.io/openclaw/openclaw:2026.7.1`.
 
 ```bash
 git apply patches/openclaw-2026.7.1-deterministic.patch

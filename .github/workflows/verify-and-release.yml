@@ -1,0 +1,167 @@
+# Source of truth: SCRIPTS/githubactions. Generated copies are overwritten.
+name: openclaw-deterministic build_asset
+
+on:
+  push:
+    tags:
+      - "20*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out patch source
+        uses: actions/checkout@v4
+
+      - name: Load exact pins
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source build.conf
+          set +a
+          [[ "$OPENCLAW_VERSION" =~ ^[0-9]{4}[.][0-9]+[.][0-9]+([-][A-Za-z0-9.]+)?$ ]]
+          [[ "$OPENCLAW_IMAGE" =~ ^(docker[.]io|ghcr[.]io)/openclaw/openclaw:[A-Za-z0-9._-]+(@sha256:[0-9a-f]{64})?$ ]]
+          [[ "$OPENCLAW_UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$OPENCLAW_PATCH_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$OPENCLAW_PATCH_FILE" == "patches/openclaw-${OPENCLAW_VERSION}-deterministic.patch" ]]
+          [[ "$OPENCLAW_DETERMINISTIC_ASSET" == "openclaw-${OPENCLAW_VERSION}-deterministic.tar.gz" ]]
+          [[ "$OPENCLAW_PNPM_VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]
+          [[ "$OPENCLAW_NODE_VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]
+          test -s "$OPENCLAW_PATCH_FILE"
+          actual_patch_sha="$(sha256sum "$OPENCLAW_PATCH_FILE" | cut -d' ' -f1)"
+          test "$actual_patch_sha" = "$OPENCLAW_PATCH_SHA256"
+          {
+            printf 'version=%s\n' "$OPENCLAW_VERSION"
+            printf 'image=%s\n' "$OPENCLAW_IMAGE"
+            printf 'upstream_sha=%s\n' "$OPENCLAW_UPSTREAM_SHA"
+            printf 'patch=%s\n' "$OPENCLAW_PATCH_FILE"
+            printf 'asset=%s\n' "$OPENCLAW_DETERMINISTIC_ASSET"
+            printf 'pnpm_version=%s\n' "$OPENCLAW_PNPM_VERSION"
+            printf 'node_version=%s\n' "$OPENCLAW_NODE_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned OpenClaw source
+        uses: actions/checkout@v4
+        with:
+          repository: openclaw/openclaw
+          ref: ${{ steps.pins.outputs.upstream_sha }}
+          fetch-depth: 1
+          path: upstream
+
+      - name: Verify pin and apply patch
+        shell: bash
+        env:
+          OPENCLAW_VERSION: ${{ steps.pins.outputs.version }}
+          OPENCLAW_PATCH: ${{ steps.pins.outputs.patch }}
+        run: |
+          set -euo pipefail
+          actual_version="$(node -p "require('./upstream/package.json').version")"
+          test "$actual_version" = "$OPENCLAW_VERSION"
+          git -C upstream apply --check "$GITHUB_WORKSPACE/$OPENCLAW_PATCH"
+          git -C upstream apply "$GITHUB_WORKSPACE/$OPENCLAW_PATCH"
+
+      - name: Set up exact pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ steps.pins.outputs.pnpm_version }}
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.pins.outputs.node_version }}
+          cache: pnpm
+          cache-dependency-path: upstream/pnpm-lock.yaml
+
+      - name: Install exact dependencies
+        working-directory: upstream
+        run: pnpm install --frozen-lockfile
+
+      - name: Run deterministic contract tests
+        working-directory: upstream
+        run: |
+          pnpm exec vitest run \
+            src/agents/deterministic-gateway-model.test.ts \
+            src/auto-reply/reply/directive-handling.defaults.test.ts \
+            src/auto-reply/reply/get-reply.before-agent-reply.test.ts \
+            src/commands/auth-choice.model-check.test.ts \
+            src/commands/model-picker.test.ts
+
+      - name: Build OpenClaw
+        working-directory: upstream
+        run: pnpm build
+
+      - name: Package release assets
+        shell: bash
+        env:
+          DIST_ASSET: ${{ steps.pins.outputs.asset }}
+          PATCH_FILE: ${{ steps.pins.outputs.patch }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            -cf - -C upstream dist \
+            | gzip -n > "artifacts/$DIST_ASSET"
+          patch_asset="$(basename -- "$PATCH_FILE")"
+          cp -- "$PATCH_FILE" "artifacts/$patch_asset"
+          (
+            cd artifacts
+            sha256sum "$DIST_ASSET" > "$DIST_ASSET.sha256"
+            sha256sum "$patch_asset" > "$patch_asset.sha256"
+          )
+
+      - name: Publish dated release
+        if: startsWith(github.ref, 'refs/tags/20')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENCLAW_VERSION: ${{ steps.pins.outputs.version }}
+          OPENCLAW_IMAGE: ${{ steps.pins.outputs.image }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          title="OpenClaw ${OPENCLAW_VERSION} deterministic patch (${tag})"
+          notes="Pinned OpenClaw ${OPENCLAW_VERSION} deterministic patch and built dist assets. Runtime image: ${OPENCLAW_IMAGE}."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" artifacts/* --clobber
+            gh release edit "$tag" --title "$title" --notes "$notes" --latest=false
+          else
+            gh release create "$tag" artifacts/* \
+              --verify-tag \
+              --title "$title" \
+              --notes "$notes" \
+              --latest=false
+          fi
+
+      - name: Publish latest release
+        if: startsWith(github.ref, 'refs/tags/20')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENCLAW_VERSION: ${{ steps.pins.outputs.version }}
+          OPENCLAW_IMAGE: ${{ steps.pins.outputs.image }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=latest
+          notes="Latest OpenClaw ${OPENCLAW_VERSION} deterministic assets. Runtime image: ${OPENCLAW_IMAGE}. Current source tag: ${GITHUB_REF_NAME}."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" artifacts/* --clobber
+            gh release edit "$tag" --title "$tag" --notes "$notes" --latest
+          else
+            gh release create "$tag" artifacts/* \
+              --verify-tag \
+              --title "$tag" \
+              --notes "$notes" \
+              --latest
+          fi
