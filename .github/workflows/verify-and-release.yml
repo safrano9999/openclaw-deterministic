@@ -35,6 +35,9 @@ jobs:
           [[ "$OPENCLAW_UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$OPENCLAW_PATCH_SHA256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$OPENCLAW_PATCH_FILE" == "patches/openclaw-${OPENCLAW_VERSION}-deterministic.patch" ]]
+          release_prefix="${OPENCLAW_VERSION}-deterministic."
+          [[ "$OPENCLAW_DETERMINISTIC_RELEASE_TAG" == "$release_prefix"* ]]
+          [[ "${OPENCLAW_DETERMINISTIC_RELEASE_TAG#"$release_prefix"}" =~ ^[0-9]+$ ]]
           [[ "$OPENCLAW_DETERMINISTIC_ASSET" == "openclaw-${OPENCLAW_VERSION}-deterministic.tar.gz" ]]
           [[ "$OPENCLAW_PNPM_VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]
           [[ "$OPENCLAW_NODE_VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]
@@ -46,6 +49,7 @@ jobs:
             printf 'image=%s\n' "$OPENCLAW_IMAGE"
             printf 'upstream_sha=%s\n' "$OPENCLAW_UPSTREAM_SHA"
             printf 'patch=%s\n' "$OPENCLAW_PATCH_FILE"
+            printf 'release_tag=%s\n' "$OPENCLAW_DETERMINISTIC_RELEASE_TAG"
             printf 'asset=%s\n' "$OPENCLAW_DETERMINISTIC_ASSET"
             printf 'pnpm_version=%s\n' "$OPENCLAW_PNPM_VERSION"
             printf 'node_version=%s\n' "$OPENCLAW_NODE_VERSION"
@@ -121,31 +125,32 @@ jobs:
             sha256sum "$patch_asset" > "$patch_asset.sha256"
           )
 
-      - name: Publish dated release
-        if: startsWith(github.ref, 'refs/tags/20')
+      - name: Publish version-pinned release
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/20')
         env:
           GH_TOKEN: ${{ github.token }}
           OPENCLAW_VERSION: ${{ steps.pins.outputs.version }}
           OPENCLAW_IMAGE: ${{ steps.pins.outputs.image }}
+          RELEASE_TAG: ${{ steps.pins.outputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="$GITHUB_REF_NAME"
-          title="OpenClaw ${OPENCLAW_VERSION} deterministic patch (${tag})"
+          tag="$RELEASE_TAG"
+          title="OpenClaw ${OPENCLAW_VERSION} deterministic patch"
           notes="Pinned OpenClaw ${OPENCLAW_VERSION} deterministic patch and built dist assets. Runtime image: ${OPENCLAW_IMAGE}."
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" artifacts/* --clobber
             gh release edit "$tag" --title "$title" --notes "$notes" --latest=false
           else
             gh release create "$tag" artifacts/* \
-              --verify-tag \
+              --target "$GITHUB_SHA" \
               --title "$title" \
               --notes "$notes" \
               --latest=false
           fi
 
       - name: Publish latest release
-        if: startsWith(github.ref, 'refs/tags/20')
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/20')
         env:
           GH_TOKEN: ${{ github.token }}
           OPENCLAW_VERSION: ${{ steps.pins.outputs.version }}

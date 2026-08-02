@@ -313,6 +313,7 @@ index d88884afbd7c303cf031acae7b6bb78cf65ec7a7..26af2bc5b66df1aa9356d3ea97c82afd
 +  it("passes inbound media and location data to plugin hooks", async () => {
 +    mocks.runBeforeAgentReply.mockResolvedValue({ handled: true, reply: { text: "saved" } });
 +    const ctx = buildGetReplyGroupCtx({
++      CommandBody: "photo caption",
 +      BodyForCommands: "photo caption",
 +      MediaPaths: ["/tmp/photo.jpg"],
 +      MediaTypes: ["image/jpeg"],
@@ -552,7 +553,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +
 +    expect(result).toEqual({ model: "dummy/note" });
 +    expect(requireOption(pickerOptions(select as MockCallSource), "dummy/note").label).toBe(
-+      "dummy/note - No AI - deterministic NOTE model",
++      "dummy/note - deterministic NOTE model",
 +    );
 +    expect(runProviderModelSelectedHook).not.toHaveBeenCalled();
 +  });
