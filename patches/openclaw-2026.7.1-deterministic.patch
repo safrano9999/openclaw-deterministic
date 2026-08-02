@@ -278,7 +278,7 @@ index d88884afbd7c303cf031acae7b6bb78cf65ec7a7..26af2bc5b66df1aa9356d3ea97c82afd
      expect(hookCtx.messageProvider).toBe("telegram");
      expect(hookCtx.trigger).toBe("user");
      expect(hookCtx.channel).toBe("telegram");
-@@ -145,6 +151,59 @@ describe("getReplyFromConfig before_agent_reply wiring", () => {
+@@ -145,6 +151,60 @@ describe("getReplyFromConfig before_agent_reply wiring", () => {
  
      expect(result).toEqual({ text: SILENT_REPLY_TOKEN });
    });
