@@ -2,7 +2,7 @@
 
 [![Pinned version](https://img.shields.io/badge/OpenClaw-2026.7.1-111827)](#version-pin)
 [![Patch](https://img.shields.io/badge/patch-dummy%2Fdummy%20%7C%20dummy%2Fnote-2563eb)](patches/openclaw-2026.7.1-deterministic.patch)
-[![Image](https://img.shields.io/badge/image-openclaw--ephemeral-0ea5e9)](https://hub.docker.com/r/safrano9999/openclaw-ephemeral)
+[![Image](https://img.shields.io/badge/image-openclaw--ephemeral-0ea5e9)](https://github.com/users/safrano9999/packages/container/package/openclaw-ephemeral)
 
 The independently maintained, exact deterministic gateway patch used by the
 Safrano OpenClaw image.
@@ -110,7 +110,7 @@ The distribution is intentionally split into three public repositories:
 The ready-to-run public image is:
 
 ```text
-docker.io/safrano9999/openclaw-ephemeral
+ghcr.io/safrano9999/openclaw-ephemeral
 ```
 
 ## License
