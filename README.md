@@ -21,11 +21,11 @@ patches/openclaw-2026.7.1-deterministic.patch
 SHA-256:
 
 ```text
-fbb06c0c21ed66be1d50042c1ba506ab8264f557fe8a7711756daa987cd0f711
+d9b266c4867b29a51b081519f1ec1a5aff59751c64d6b80108b42f104088d415
 ```
 
-It contains the functional 16-file deterministic change set without unrelated
-repository history or automation.
+It contains the functional 26-file deterministic and per-server MCP private-network
+change set without unrelated repository history or automation.
 
 ## Deterministic routes
 

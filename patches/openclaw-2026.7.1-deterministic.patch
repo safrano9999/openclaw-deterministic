@@ -14,7 +14,7 @@ index 71e8398cbade27455f4cd926c51575df54346677..23a293ff1bc889de491a3bbcefeb26f2
 @@ -540,6 +542,14 @@ export function writeLegacyCliExitCompatChunks(params = {}) {
    }
  }
- 
+
 +export function copyDeterministicGatewayReplies(params = {}) {
 +  const rootDir = params.rootDir ?? ROOT;
 +  fs.copyFileSync(
@@ -120,7 +120,7 @@ index a45ba35bc4aa5b2bd25248eabfc4dbc3594063f6..6b3d3073680633056745fd1fd63dfa85
 @@ -305,6 +310,23 @@ function sortModelCatalogEntries(entries: ModelCatalogEntry[]): ModelCatalogEntr
    });
  }
- 
+
 +function withDeterministicModelCatalog(entries: ModelCatalogEntry[]): ModelCatalogEntry[] {
 +  const models = [...entries];
 +  mergeCatalogEntries(models, [
@@ -188,7 +188,7 @@ index a45ba35bc4aa5b2bd25248eabfc4dbc3594063f6..6b3d3073680633056745fd1fd63dfa85
 @@ -794,7 +818,7 @@ export async function loadModelCatalog(params?: {
          }
        }
- 
+
 -      const sorted = sortModels(models);
 +      const sorted = withDeterministicModelCatalog(models);
        if (!readOnly) {
@@ -205,7 +205,7 @@ index a45ba35bc4aa5b2bd25248eabfc4dbc3594063f6..6b3d3073680633056745fd1fd63dfa85
 +      return withDeterministicModelCatalog([]);
      }
    };
- 
+
 diff --git a/src/auto-reply/reply/directive-handling.defaults.test.ts b/src/auto-reply/reply/directive-handling.defaults.test.ts
 new file mode 100644
 index 0000000000000000000000000000000000000000..49bf6166b12f95a3f78010da8e919352e66f35b3
@@ -246,7 +246,7 @@ index d88884afbd7c303cf031acae7b6bb78cf65ec7a7..26af2bc5b66df1aa9356d3ea97c82afd
 @@ -34,7 +35,7 @@ async function loadGetReplyRuntimeForTest() {
    ({ getReplyFromConfig } = await loadGetReplyModuleForTest({ cacheKey: import.meta.url }));
  }
- 
+
 -function createContinueDirectivesResult() {
 +function createContinueDirectivesResult(overrides: { provider?: string; model?: string } = {}) {
    return createGetReplyContinueDirectivesResult({
@@ -259,7 +259,7 @@ index d88884afbd7c303cf031acae7b6bb78cf65ec7a7..26af2bc5b66df1aa9356d3ea97c82afd
 +    ...overrides,
    });
  }
- 
+
 @@ -107,6 +109,8 @@ describe("getReplyFromConfig before_agent_reply wiring", () => {
            sessionKey?: string;
            sessionId?: string;
@@ -279,7 +279,7 @@ index d88884afbd7c303cf031acae7b6bb78cf65ec7a7..26af2bc5b66df1aa9356d3ea97c82afd
      expect(hookCtx.trigger).toBe("user");
      expect(hookCtx.channel).toBe("telegram");
 @@ -145,6 +151,60 @@ describe("getReplyFromConfig before_agent_reply wiring", () => {
- 
+
      expect(result).toEqual({ text: SILENT_REPLY_TOKEN });
    });
 +
@@ -427,7 +427,7 @@ index 846c135ff0ea690c36f36128f61e2fbecc60e28b..014d0eef02bbb8b54749244843bf3d06
 @@ -1025,6 +1076,21 @@ export async function getReplyFromConfig(
      }
    }
- 
+
 +  if (isDeterministicNoteModel(runProvider, runModel)) {
 +    const notePluginLoaded =
 +      getGlobalPluginRegistry()?.plugins.some(
@@ -453,7 +453,7 @@ index 4c0b64319028509face145f5489c18e709c5f974..8b11c3d849d33cefd9b9455e4bc377d1
 @@ -138,6 +138,26 @@ describe("warnIfModelConfigLooksOff", () => {
      );
    });
- 
+
 +  it("treats the deterministic gateway model as intentionally credential-free", async () => {
 +    const note = vi.fn(async () => {});
 +    const prompter = makePrompter({ note });
@@ -507,7 +507,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +++ b/src/commands/model-picker.test.ts
 @@ -351,6 +351,77 @@ afterEach(() => {
  });
- 
+
  describe("promptDefaultModel", () => {
 +  it("offers deterministic gateway mode without a provider catalog", async () => {
 +    loadModelCatalog.mockResolvedValue([]);
@@ -585,16 +585,16 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
        {
 @@ -395,7 +466,7 @@ describe("promptDefaultModel", () => {
      });
- 
+
      const values = optionValues(pickerOptions(select as MockCallSource));
 -    expect(values).toEqual(["anthropic/claude-sonnet-4-6"]);
 +    expect(values).toEqual(["anthropic/claude-sonnet-4-6", "dummy/dummy", "dummy/note"]);
    });
- 
+
    it("keeps implicit Bedrock AWS SDK models visible without API-key auth", async () => {
 @@ -417,7 +488,11 @@ describe("promptDefaultModel", () => {
      });
- 
+
      const values = optionValues(pickerOptions(select as MockCallSource));
 -    expect(values).toEqual(["amazon-bedrock/us.anthropic.claude-sonnet-4-5"]);
 +    expect(values).toEqual([
@@ -603,7 +603,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +      "dummy/note",
 +    ]);
    });
- 
+
    it("hides legacy runtime providers from default model choices", async () => {
 @@ -448,6 +523,8 @@ describe("promptDefaultModel", () => {
        "openai/gpt-5.5",
@@ -613,7 +613,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +      "dummy/note",
      ]);
    });
- 
+
 @@ -470,6 +547,8 @@ describe("promptDefaultModel", () => {
      expect(result.model).toBe("google/gemini-3.1-pro-preview");
      expect(optionValues(pickerOptions(select as MockCallSource))).toEqual([
@@ -646,7 +646,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +      "dummy/note",
      ]);
    });
- 
+
 @@ -754,6 +841,8 @@ describe("promptDefaultModel", () => {
        "__keep__",
        "__manual__",
@@ -655,7 +655,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +      "dummy/note",
      ]);
    });
- 
+
 @@ -899,6 +988,8 @@ describe("promptDefaultModel", () => {
      expect(optionValues(pickerOptions(select as MockCallSource))).toEqual([
        "nvidia/nemotron-3-super-120b-a12b",
@@ -664,7 +664,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +      "dummy/note",
      ]);
    });
- 
+
 @@ -941,6 +1032,8 @@ describe("promptDefaultModel", () => {
        "nvidia/z-ai/glm-5.1",
        "nvidia/nemotron-3-super-120b-a12b",
@@ -682,7 +682,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +      "dummy/note",
      ]);
    });
- 
+
 @@ -1261,6 +1356,8 @@ describe("promptDefaultModel", () => {
        "__keep__",
        "__manual__",
@@ -691,7 +691,7 @@ index afdcd5a774bc5ba713e8208ca2bc921b1e451859..a3decac6b4478a566d14b12d88dfac8b
 +      "dummy/note",
      ]);
    });
- 
+
 diff --git a/src/flows/model-picker.ts b/src/flows/model-picker.ts
 index 77714739874ca7d411e07454f89127710acf760a..0207b6d09a9e1e327cb4a2e534a7d743e987bf80 100644
 --- a/src/flows/model-picker.ts
@@ -710,7 +710,7 @@ index 77714739874ca7d411e07454f89127710acf760a..0207b6d09a9e1e327cb4a2e534a7d743
 @@ -57,6 +61,29 @@ function formatKeepCurrentModelLabel(params: {
      : t("wizard.model.keepCurrentDefault", { value: params.resolvedKey });
  }
- 
+
 +function deterministicGatewayOption(): WizardSelectOption {
 +  return {
 +    value: DETERMINISTIC_GATEWAY_MODEL_REF,
@@ -742,7 +742,7 @@ index 77714739874ca7d411e07454f89127710acf760a..0207b6d09a9e1e327cb4a2e534a7d743
        hint: t("wizard.model.loadsProviderCatalogs"),
      });
 +    addDeterministicGatewayOption(options);
- 
+
      const selection = await params.prompter.select({
        message: params.message ?? t("wizard.model.defaultModel"),
 @@ -761,6 +789,7 @@ export async function promptDefaultModel(
@@ -764,7 +764,7 @@ index 77714739874ca7d411e07454f89127710acf760a..0207b6d09a9e1e327cb4a2e534a7d743
 -    });
 +    return promptDefaultModel({ ...params, loadCatalog: false });
    }
- 
+
    const aliasIndex = buildModelAliasIndex({
 @@ -826,11 +851,7 @@ export async function promptDefaultModel(
          env: params.env,
@@ -777,7 +777,7 @@ index 77714739874ca7d411e07454f89127710acf760a..0207b6d09a9e1e327cb4a2e534a7d743
 -    });
 +    return promptDefaultModel({ ...params, loadCatalog: false });
    }
- 
+
    const isVisibleProvider = createModelPickerVisibleProviderPredicate({
 @@ -848,11 +869,7 @@ export async function promptDefaultModel(
      isVisibleProvider,
@@ -797,7 +797,7 @@ index 77714739874ca7d411e07454f89127710acf760a..0207b6d09a9e1e327cb4a2e534a7d743
      });
    }
 +  addDeterministicGatewayOption(options);
- 
+
    const firstPreferredModel =
      preferredProvider && hasPreferredProvider
 @@ -959,6 +977,12 @@ export async function promptDefaultModel(
@@ -810,7 +810,7 @@ index 77714739874ca7d411e07454f89127710acf760a..0207b6d09a9e1e327cb4a2e534a7d743
 +  ) {
 +    return { model: selectedValue };
 +  }
- 
+
    const providerPluginResult = await maybeHandleProviderPluginSelection({
      selection: selectedValue,
 diff --git a/src/plugins/hook-types.ts b/src/plugins/hook-types.ts
@@ -818,7 +818,7 @@ index 96f5f4cb28e7aadf10ecf7f7670d07c162a9c38f..ed05fed5d2876a31e2832e6f0d712a90
 --- a/src/plugins/hook-types.ts
 +++ b/src/plugins/hook-types.ts
 @@ -303,6 +303,21 @@ export type PluginHookContextWindowSource =
- 
+
  export type PluginHookBeforeAgentReplyEvent = {
    cleanedBody: string;
 +  userText?: string;
@@ -837,7 +837,7 @@ index 96f5f4cb28e7aadf10ecf7f7670d07c162a9c38f..ed05fed5d2876a31e2832e6f0d712a90
 +  };
 +  structuredContext?: Array<{ label: string; source?: string; type?: string; payload: unknown }>;
  };
- 
+
  export type PluginHookBeforeAgentReplyResult = {
 diff --git a/src/wizard/i18n/locales/en.ts b/src/wizard/i18n/locales/en.ts
 index 7abe170560b5a7f36ea7cb0ba6ed161bac424efb..e1eb19287d11f66ebb67f5a35522bdf928db1b2f 100644
@@ -878,3 +878,179 @@ index e2e16694d718ca8ccec797836dc0a42e59a2bcdd..cd547b981982ddbf5f3cc62bf37f9f85
        enterManually: "手動輸入模型",
        filterByProvider: "按 provider 篩選模型",
        keepCurrent: "保留目前值（{value}）",
+diff --git a/src/agents/mcp-http-fetch.ts b/src/agents/mcp-http-fetch.ts
+index 83bf9ebf28b1711ec17aa75266e483e80d9be339..04814d6b54456c0b753ea0806bf07761bd3702dc 100644
+--- a/src/agents/mcp-http-fetch.ts
++++ b/src/agents/mcp-http-fetch.ts
+@@ -8,6 +8,7 @@ import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+ import { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
+ import { wrapGuardedBodyStream } from "../infra/net/guarded-body-stream.js";
+ import {
++  mergeSsrFPolicies,
+   ssrfPolicyFromHttpBaseUrlAllowedOrigin,
+   type PinnedDispatcherPolicy,
+ } from "../infra/net/ssrf.js";
+@@ -96,13 +97,15 @@ export function buildMcpHttpFetch(params: {
+   clientCert?: string;
+   clientKey?: string;
+   resourceUrl?: string;
++  allowPrivateNetwork?: boolean;
+ }): FetchLike {
+   const needsCustomDispatcher =
+     params.sslVerify === false || Boolean(params.clientCert || params.clientKey);
+   const scopedOrigin = params.resourceUrl ? new URL(params.resourceUrl).origin : undefined;
+-  const policy = params.resourceUrl
+-    ? ssrfPolicyFromHttpBaseUrlAllowedOrigin(params.resourceUrl)
+-    : undefined;
++  const policy = mergeSsrFPolicies(
++    params.resourceUrl ? ssrfPolicyFromHttpBaseUrlAllowedOrigin(params.resourceUrl) : undefined,
++    params.allowPrivateNetwork ? { allowPrivateNetwork: true } : undefined,
++  );
+
+   let customConnect: Record<string, unknown> | undefined;
+   const resolveCustomDispatcherPolicy = (url: URL): PinnedDispatcherPolicy | undefined => {
+diff --git a/src/agents/mcp-transport-config.test.ts b/src/agents/mcp-transport-config.test.ts
+index d2ce99c774c6b7723688a284e743a99770bb6114..7cce4ada4f0c7261f577d7e86b5cb88c40b2847d 100644
+--- a/src/agents/mcp-transport-config.test.ts
++++ b/src/agents/mcp-transport-config.test.ts
+@@ -191,6 +191,7 @@ describe("resolveMcpTransportConfig", () => {
+     const resolved = resolveMcpTransportConfig("probe", {
+       url: "https://mcp.example.com/http",
+       transport: "streamable-http",
++      allowPrivateNetwork: true,
+     });
+
+     expect(resolved).toEqual({
+@@ -198,6 +199,7 @@ describe("resolveMcpTransportConfig", () => {
+       transportType: "streamable-http",
+       url: "https://mcp.example.com/http",
+       headers: undefined,
++      allowPrivateNetwork: true,
+       description: "https://mcp.example.com/http",
+       connectionTimeoutMs: 30_000,
+       requestTimeoutMs: 60_000,
+diff --git a/src/agents/mcp-transport-config.ts b/src/agents/mcp-transport-config.ts
+index 85870174dd7843a8f60fe4d0ec6af88e69d34f81..80f2860c4f61662d7ba66d745a22910f778df8e7 100644
+--- a/src/agents/mcp-transport-config.ts
++++ b/src/agents/mcp-transport-config.ts
+@@ -42,6 +42,7 @@ type ResolvedHttpMcpTransportConfig = ResolvedBaseMcpTransportConfig & {
+   headers?: Record<string, string>;
+   auth?: "oauth";
+   oauth?: Record<string, unknown>;
++  allowPrivateNetwork?: boolean;
+   sslVerify?: boolean;
+   clientCert?: string;
+   clientKey?: string;
+@@ -171,6 +172,9 @@ function resolveHttpTransportConfig(
+     !Array.isArray((rawServer as { oauth?: unknown }).oauth)
+       ? { oauth: (rawServer as { oauth: Record<string, unknown> }).oauth }
+       : {}),
++    ...(getBooleanField(rawServer, ["allowPrivateNetwork"]) === true
++      ? { allowPrivateNetwork: true }
++      : {}),
+     ...(getBooleanField(rawServer, ["sslVerify", "ssl_verify"]) !== undefined
+       ? { sslVerify: getBooleanField(rawServer, ["sslVerify", "ssl_verify"]) }
+       : {}),
+diff --git a/src/agents/mcp-transport.test.ts b/src/agents/mcp-transport.test.ts
+index 3463fbea2dacabeb21246c7e49ba5668ae6dc0cc..54874adc16812e7a76fff15620fd00a79100476b 100644
+--- a/src/agents/mcp-transport.test.ts
++++ b/src/agents/mcp-transport.test.ts
+@@ -179,6 +179,24 @@ describe("resolveMcpTransport", () => {
+     expect(runtimeFetchMock).toHaveBeenCalledTimes(1);
+   });
+
++  it("allows private network targets only when the server opts in", async () => {
++    lookupMock.mockResolvedValue([{ address: "169.254.1.2", family: 4 }]);
++    runtimeFetchMock.mockResolvedValueOnce(new Response("ok"));
++
++    resolveMcpTransport("probe", {
++      url: "http://host.containers.internal:4000/mcp",
++      transport: "streamable-http",
++      allowPrivateNetwork: true,
++    });
++
++    await expect(
++      latestStreamableFetch()("http://host.containers.internal:4000/mcp"),
++    ).resolves.toMatchObject({ status: 200 });
++
++    expect(runtimeFetchMock).toHaveBeenCalledTimes(1);
++    expect(runtimeFetchCall(0)?.[0]).toBe("http://host.containers.internal:4000/mcp");
++  });
++
+   it("preserves replayable request bodies for cross-origin streamable HTTP redirects", async () => {
+     // 307/308 redirects preserve method/body, while custom auth headers are
+     // still stripped when the destination origin changes.
+diff --git a/src/agents/mcp-transport.ts b/src/agents/mcp-transport.ts
+index 4848ef55adad8f6bef8973b1c987c56105f5c588..843faed29123c75a30ce1dcc50066e5fb9aa7e58 100644
+--- a/src/agents/mcp-transport.ts
++++ b/src/agents/mcp-transport.ts
+@@ -125,6 +125,7 @@ export function resolveMcpTransport(
+     clientCert: resolved.clientCert,
+     clientKey: resolved.clientKey,
+     resourceUrl: resolved.url,
++    allowPrivateNetwork: resolved.allowPrivateNetwork,
+   });
+   const headers =
+     resolved.auth === "oauth" ? withoutMcpAuthorizationHeader(resolved.headers) : resolved.headers;
+diff --git a/src/config/schema.help.ts b/src/config/schema.help.ts
+index b21820b5277c92ffc33ff729dcdb1a3da4670372..e3d3aca4c62451df513bdd5136b70a5863d4400e 100644
+--- a/src/config/schema.help.ts
++++ b/src/config/schema.help.ts
+@@ -1619,6 +1619,8 @@ export const FIELD_HELP: Record<string, string> = {
+   mcp: "Global MCP server definitions managed by OpenClaw. Embedded OpenClaw and other runtime adapters can consume these servers without storing them inside runtime-owned project settings.",
+   "mcp.servers":
+     "Named MCP server definitions. OpenClaw stores them in its own config and runtime adapters decide which transports are supported at execution time.",
++  "mcp.servers.*.allowPrivateNetwork":
++    "Allow HTTP requests for this MCP server to private, loopback, and link-local network addresses. Enable only for a trusted server because redirects can also reach those networks.",
+   "mcp.servers.*.codex":
+     "OpenClaw projection metadata for Codex app-server threads only. It does not affect ACP sessions or generic Codex harness config. Omit this block to keep the server available to every Codex app-server agent with Codex's default MCP approval behavior.",
+   "mcp.servers.*.toolFilter":
+diff --git a/src/config/schema.labels.ts b/src/config/schema.labels.ts
+index 68051454f248123d4926b2ca26df6ea0c144ddb9..4a3db8ebecc92f68392b8c3da8cfac62920e997c 100644
+--- a/src/config/schema.labels.ts
++++ b/src/config/schema.labels.ts
+@@ -775,6 +775,7 @@ export const FIELD_LABELS: Record<string, string> = {
+   "mcp.servers.*.oauth.scope": "MCP OAuth Scope",
+   "mcp.servers.*.oauth.redirectUrl": "MCP OAuth Redirect URL",
+   "mcp.servers.*.oauth.clientMetadataUrl": "MCP OAuth Client Metadata URL",
++  "mcp.servers.*.allowPrivateNetwork": "MCP Private Network Access",
+   "mcp.servers.*.timeout": "MCP Request Timeout",
+   "mcp.servers.*.requestTimeoutMs": "MCP Request Timeout (ms)",
+   "mcp.servers.*.connectTimeout": "MCP Connect Timeout",
+diff --git a/src/config/schema.test.ts b/src/config/schema.test.ts
+index ff28636236803ed20c079e887c97f1d1081c56e4..75a918013aa013ea0feba6f0fad9c05aa7d90082 100644
+--- a/src/config/schema.test.ts
++++ b/src/config/schema.test.ts
+@@ -180,6 +180,7 @@ describe("config schema", () => {
+     expect(serversNode?.additionalProperties?.properties).toHaveProperty("connectTimeout");
+     expect(serversNode?.additionalProperties?.properties).toHaveProperty("auth");
+     expect(serversNode?.additionalProperties?.properties).toHaveProperty("oauth");
++    expect(serversNode?.additionalProperties?.properties).toHaveProperty("allowPrivateNetwork");
+     expect(serversNode?.additionalProperties?.properties).toHaveProperty("sslVerify");
+     expect(serversNode?.additionalProperties?.properties).toHaveProperty("clientCert");
+     expect(serversNode?.additionalProperties?.properties).toHaveProperty("toolFilter");
+diff --git a/src/config/types.mcp.ts b/src/config/types.mcp.ts
+index 89b0f5b68df0292ee80132c1aa0173cc58c15b74..423c9dafa8b5f6d9d1dc67de59f518468e2341e8 100644
+--- a/src/config/types.mcp.ts
++++ b/src/config/types.mcp.ts
+@@ -40,6 +40,8 @@ export type McpServerConfig = {
+   transport?: "stdio" | "sse" | "streamable-http";
+   /** HTTP transport: extra HTTP headers sent with every request. */
+   headers?: Record<string, string | number | boolean>;
++  /** Allow HTTP requests for this trusted server to private, loopback, and link-local addresses. */
++  allowPrivateNetwork?: boolean;
+   /** Optional connection timeout in milliseconds. */
+   connectionTimeoutMs?: number;
+   /** Optional connection timeout in seconds. */
+diff --git a/src/config/zod-schema.ts b/src/config/zod-schema.ts
+index 59d56fe50dc5782936b60a7dbe3f9d7d17b7e535..6f3374d6d50ccd060eaa378d635e986ddbaba75c 100644
+--- a/src/config/zod-schema.ts
++++ b/src/config/zod-schema.ts
+@@ -401,6 +401,7 @@ const McpServerSchema = z
+         z.union([z.string().register(sensitive), z.number(), z.boolean()]).register(sensitive),
+       )
+       .optional(),
++    allowPrivateNetwork: z.boolean().optional(),
+     connectionTimeoutMs: z.number().finite().positive().optional(),
+     connectTimeout: z.number().finite().positive().optional(),
+     connect_timeout: z.number().finite().positive().optional(),

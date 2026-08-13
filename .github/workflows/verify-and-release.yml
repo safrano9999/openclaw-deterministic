@@ -97,6 +97,8 @@ jobs:
         run: |
           pnpm exec vitest run \
             src/agents/deterministic-gateway-model.test.ts \
+            src/agents/mcp-transport-config.test.ts \
+            src/agents/mcp-transport.test.ts \
             src/auto-reply/reply/directive-handling.defaults.test.ts \
             src/auto-reply/reply/get-reply.before-agent-reply.test.ts \
             src/commands/auth-choice.model-check.test.ts \
